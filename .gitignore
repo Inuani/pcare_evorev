@@ -1,0 +1,9 @@
+.dfx/
+.mops/
+.env
+.vscode/
+cmacs.json
+canister_ids.json
+Pujas_paper.txt
+ritual.md
+spec.md
