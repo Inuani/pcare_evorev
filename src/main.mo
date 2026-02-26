@@ -7,15 +7,28 @@ import AssetCanister "mo:liminal/AssetCanister";
 import Text "mo:core/Text";
 import ProtectedRoutes "nfc_protec_routes";
 import Routes "routes";
-import Result "mo:core/Result";
+import Scan "scan";
+import Nat "mo:core/Nat";
+import Array "mo:core/Array";
+import Map "mo:map/Map";
 import RouterMiddleware "mo:liminal/Middleware/Router";
 import App "mo:liminal/App";
 import HttpContext "mo:liminal/HttpContext";
 import InvalidScan "invalid_scan";
+import Types "models/Types";
+import State "models/State";
 
 shared ({ caller = initializer }) persistent actor class Actor() = self {
 
     transient let canisterId = Principal.fromActor(self);
+    var admin_principal : Principal = initializer;
+
+    func isAdmin(caller : Principal) : Bool {
+        caller == admin_principal;
+    };
+
+    var appState = State.init();
+    var user_counter : Nat = 0;
 
     var assetStableData = HttpAssets.init_stable_store(canisterId, initializer);
     assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
@@ -89,14 +102,200 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         };
     });
 
-    // Http server methods
+    // --- Admin Endpoints ---
+
+    public shared ({ caller }) func add_user(username : Text, nfc_uid : Text) : async Types.UserId {
+        if (not isAdmin(caller)) {
+            throw Error.reject("Not authorized: Must be Admin to add users.");
+        };
+
+        user_counter += 1;
+        let userId = "user_" # Nat.toText(user_counter);
+
+        let newUser : Types.User = {
+            id = userId;
+            username = username;
+            active_nfc_uids = [nfc_uid];
+        };
+
+        ignore Map.put(appState.users, Map.thash, userId, newUser);
+        ignore Map.put(appState.nfc_mapping, Map.thash, nfc_uid, userId);
+
+        userId;
+    };
+
+    public shared ({ caller }) func add_project(id : Text, name : Text, lead_id : Text) : async () {
+        if (not isAdmin(caller)) {
+            throw Error.reject("Not authorized: Must be Admin to add projects.");
+        };
+
+        switch (Map.get(appState.users, Map.thash, lead_id)) {
+            case null { throw Error.reject("Lead user does not exist") };
+            case (?_) {};
+        };
+
+        let newProject : Types.Project = {
+            id = id;
+            name = name;
+            current_supply = 0;
+            lead_id = lead_id;
+            treasury = [];
+        };
+
+        ignore Map.put(appState.projects, Map.thash, id, newProject);
+    };
+
+    public shared ({ caller }) func recover_nfc_tag(user_id : Text, new_nfc_uid : Text, old_nfc_uid : ?Text) : async () {
+        if (not isAdmin(caller)) {
+            throw Error.reject("Not authorized: Must be Admin to recover tags.");
+        };
+
+        switch (Map.get(appState.users, Map.thash, user_id)) {
+            case null { throw Error.reject("User does not exist") };
+            case (?user) {
+                switch (old_nfc_uid) {
+                    case (?old_uid) {
+                        ignore Map.remove(appState.nfc_mapping, Map.thash, old_uid);
+                    };
+                    case null {};
+                };
+
+                ignore Map.put(appState.nfc_mapping, Map.thash, new_nfc_uid, user_id);
+
+                let updatedUser = {
+                    user with active_nfc_uids = Array.concat<Text>(user.active_nfc_uids, [new_nfc_uid])
+                };
+                ignore Map.put(appState.users, Map.thash, user_id, updatedUser);
+            };
+        };
+    };
+
+    // --- Internal Helpers ---
+
+    private func get_balance(holder_id : Text, token_id : Text) : Types.Balance {
+        switch (Map.get(appState.ledger, Map.combineHash(Map.thash, Map.thash), (holder_id, token_id))) {
+            case null { { liquid = 0; staked = 0 } };
+            case (?b) { b };
+        };
+    };
+
+    private func set_balance(holder_id : Text, token_id : Text, balance : Types.Balance) {
+        ignore Map.put(appState.ledger, Map.combineHash(Map.thash, Map.thash), (holder_id, token_id), balance);
+    };
+
+    // --- Core Economic Endpoints ---
+
+    public shared ({ caller }) func mint(
+        project_id : Types.ProjectId,
+        recipient_id : Types.UserId,
+        amount_liquid : Nat,
+        amount_staked : Nat,
+        _justification : Text,
+    ) : async () {
+        if (not isAdmin(caller)) {
+            // In a fully decentralized setup, we might also verify if the caller is the lead_id
+            // For now, only the trusted admin (e.g. Discord Bot) can trigger mints based on consensus.
+            throw Error.reject("Not authorized: Must be Admin to mint.");
+        };
+
+        // Update Project Supply
+        let project = switch (Map.get(appState.projects, Map.thash, project_id)) {
+            case null { throw Error.reject("Project does not exist") };
+            case (?p) { p };
+        };
+
+        let total_mint = amount_liquid + amount_staked;
+        let updatedProject = {
+            project with current_supply = project.current_supply + total_mint
+        };
+        ignore Map.put(appState.projects, Map.thash, project_id, updatedProject);
+
+        // Update Recipient Ledger
+        let bal = get_balance(recipient_id, project_id);
+        let new_bal : Types.Balance = {
+            liquid = bal.liquid + amount_liquid;
+            staked = bal.staked + amount_staked;
+        };
+        set_balance(recipient_id, project_id, new_bal);
+    };
+
+    public shared ({ caller }) func pay(
+        from_id : Types.UserId,
+        to_target_id : Text, // Can be a UserId or a ProjectId
+        token_project_id : Types.ProjectId,
+        amount : Nat,
+    ) : async () {
+        if (not isAdmin(caller)) {
+            throw Error.reject("Not authorized: Must be Admin to execute payments.");
+        };
+
+        let from_bal = get_balance(from_id, token_project_id);
+        if (from_bal.liquid < amount) {
+            throw Error.reject("Insufficient liquid tokens.");
+        };
+
+        let to_bal = get_balance(to_target_id, token_project_id);
+
+        let new_from_bal : Types.Balance = {
+            liquid = from_bal.liquid - amount;
+            staked = from_bal.staked;
+        };
+
+        let new_to_bal : Types.Balance = {
+            liquid = to_bal.liquid + amount;
+            staked = to_bal.staked;
+        };
+
+        set_balance(from_id, token_project_id, new_from_bal);
+        set_balance(to_target_id, token_project_id, new_to_bal);
+    };
+
+    public shared ({ caller }) func stake(
+        holder_id : Types.UserId,
+        token_project_id : Types.ProjectId,
+        amount : Nat,
+    ) : async () {
+        if (not isAdmin(caller)) {
+            throw Error.reject("Not authorized: Must be Admin to execute stakes.");
+        };
+
+        let bal = get_balance(holder_id, token_project_id);
+        if (bal.liquid < amount) {
+            throw Error.reject("Insufficient liquid tokens to stake.");
+        };
+
+        let new_bal : Types.Balance = {
+            liquid = bal.liquid - amount;
+            staked = bal.staked + amount;
+        };
+
+        set_balance(holder_id, token_project_id, new_bal);
+    };
+
+    // --- Http server methods ---
 
     public query func http_request(request : Liminal.RawQueryHttpRequest) : async Liminal.RawQueryHttpResponse {
         app.http_request(request);
     };
 
     public func http_request_update(request : Liminal.RawUpdateHttpRequest) : async Liminal.RawUpdateHttpResponse {
-        await* app.http_request_update(request);
+        var mutableRequest = request;
+
+        switch (Scan.getUid(request.url)) {
+            case (?uid) {
+                switch (Map.get(appState.nfc_mapping, Map.thash, uid)) {
+                    case (?userId) {
+                        mutableRequest := {
+                            mutableRequest with url = request.url # "&userId=" # userId
+                        };
+                    };
+                    case null {};
+                };
+            };
+            case null {};
+        };
+
+        await* app.http_request_update(mutableRequest);
     };
 
     public query func http_request_streaming_callback(token : HttpAssets.StreamingToken) : async HttpAssets.StreamingCallbackResponse {
