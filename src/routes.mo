@@ -8,25 +8,31 @@ module Routes {
             prefix = null;
             identityRequirement = null;
             routes = [
-                Router.getQuery(
+                Router.get(
                     "/",
-                    func(ctx : RouteContext.RouteContext) : Liminal.HttpResponse {
-                        let html = "<html><body><h1>Evorev NFC System Active</h1></body></html>";
-                        ctx.buildResponse(#ok, #html(html));
-                    },
+                    #query_(
+                        func(ctx : RouteContext.RouteContext) : Liminal.HttpResponse {
+                            let html = "<html><body><h1>Evorev NFC System Active</h1></body></html>";
+                            ctx.buildResponse(#ok, #html(html));
+                        }
+                    ),
                 ),
-                Router.getQuery(
+                Router.get(
                     "/pcare",
-                    func(ctx : RouteContext.RouteContext) : Liminal.HttpResponse {
-                        let html = "<html><body style='font-family: sans-serif; text-align: center; margin-top: 50px;'><h1>✅ NFC Scan Validated!</h1><p>Welcome to the PCARE Portal.</p></body></html>";
-                        ctx.buildResponse(#ok, #html(html));
-                    },
+                    #query_(
+                        func(ctx : RouteContext.RouteContext) : Liminal.HttpResponse {
+                            let html = "<html><body style='font-family: sans-serif; text-align: center; margin-top: 50px;'><h1>✅ NFC Scan Validated!</h1><p>Welcome to the PCARE Portal.</p></body></html>";
+                            ctx.buildResponse(#ok, #html(html));
+                        }
+                    ),
                 ),
-                Router.getQuery(
+                Router.get(
                     "/{path}",
-                    func(ctx) : Liminal.HttpResponse {
-                        ctx.buildResponse(#notFound, #error(#message("Not found")));
-                    },
+                    #query_(
+                        func(ctx) : Liminal.HttpResponse {
+                            ctx.buildResponse(#notFound, #error(#message("Not found")));
+                        }
+                    ),
                 ),
             ];
         };

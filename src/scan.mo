@@ -5,7 +5,8 @@ import Iter "mo:core/Iter";
 import Char "mo:core/Char";
 import Nat8 "mo:core/Nat8";
 import Nat32 "mo:core/Nat32";
-import Sha "sha";
+import Blob "mo:core/Blob";
+import Sha256 "mo:sha2/Sha256";
 
 module {
     public func hexToNat(hexString : Text) : Nat {
@@ -87,14 +88,16 @@ module {
 
         var counter = hexToNat(counter_query[1]);
 
-        let sha = Sha.sha256(
-            Array.map(
-                Text.toArray(cmac_query[1]),
-                func(c : Char) : Nat8 {
-                    Nat8.fromNat(Nat32.toNat(Char.toNat32(c)));
-                },
-            )
+        let input_bytes = Array.map(
+            Text.toArray(cmac_query[1]),
+            func(c : Char) : Nat8 {
+                Nat8.fromNat(Nat32.toNat(Char.toNat32(c)));
+            },
         );
+
+        let digest = Sha256.Digest(#sha256);
+        digest.writeArray(input_bytes);
+        let sha = Blob.toArray(digest.sum());
 
         if (counter > cmacs.size() or counter <= scan_count) {
             return 0;
