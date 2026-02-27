@@ -1,6 +1,8 @@
 import Liminal "mo:liminal";
 import Principal "mo:core/Principal";
 import Error "mo:core/Error";
+import Result "mo:core/Result";
+import Iter "mo:core/Iter";
 import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets@0";
 import AssetCanister "mo:liminal/AssetCanister";
@@ -78,29 +80,6 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
             };
         };
     };
-
-    transient let app = Liminal.App({
-        middleware = [
-            createNFCProtectionMiddleware(),
-            AssetsMiddleware.new(assetMiddlewareConfig),
-            RouterMiddleware.new(
-                Routes.routerConfig(
-                    Principal.toText(canisterId)
-                )
-            ),
-        ];
-        errorSerializer = Liminal.defaultJsonErrorSerializer;
-        candidRepresentationNegotiator = Liminal.defaultCandidRepresentationNegotiator;
-        logger = Liminal.buildDebugLogger(#info);
-        urlNormalization = {
-            usernameIsCaseSensitive = false;
-            pathIsCaseSensitive = true;
-            queryKeysAreCaseSensitive = false;
-            removeEmptyPathSegments = true;
-            resolvePathDotSegments = true;
-            preserveTrailingSlash = false;
-        };
-    });
 
     // --- Admin Endpoints ---
 
@@ -183,24 +162,22 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         ignore Map.put(appState.ledger, Map.combineHash(Map.thash, Map.thash), (holder_id, token_id), balance);
     };
 
-    // --- Core Economic Endpoints ---
+    // --- Internal Bypasses for Authenticated SSR Dashboard ---
 
-    public shared ({ caller }) func mint(
+    private func mint_internal(
         project_id : Types.ProjectId,
-        recipient_id : Types.UserId,
+        recipient_input : Text,
         amount_liquid : Nat,
         amount_staked : Nat,
         _justification : Text,
-    ) : async () {
-        if (not isAdmin(caller)) {
-            // In a fully decentralized setup, we might also verify if the caller is the lead_id
-            // For now, only the trusted admin (e.g. Discord Bot) can trigger mints based on consensus.
-            throw Error.reject("Not authorized: Must be Admin to mint.");
+    ) : async Result.Result<(), Text> {
+        let recipient_id = switch (resolve_user_id(recipient_input)) {
+            case (?id) id;
+            case null return #err("Recipient username not found.");
         };
 
-        // Update Project Supply
         let project = switch (Map.get(appState.projects, Map.thash, project_id)) {
-            case null { throw Error.reject("Project does not exist") };
+            case null { return #err("Project does not exist") };
             case (?p) { p };
         };
 
@@ -210,28 +187,48 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         };
         ignore Map.put(appState.projects, Map.thash, project_id, updatedProject);
 
-        // Update Recipient Ledger
         let bal = get_balance(recipient_id, project_id);
         let new_bal : Types.Balance = {
             liquid = bal.liquid + amount_liquid;
             staked = bal.staked + amount_staked;
         };
         set_balance(recipient_id, project_id, new_bal);
+        #ok(());
     };
 
-    public shared ({ caller }) func pay(
+    private func resolve_user_id(input : Text) : ?Types.UserId {
+        // First check if input is exactly a User ID
+        switch (Map.get(appState.users, Map.thash, input)) {
+            case (?user) return ?user.id;
+            case null {};
+        };
+        // Otherwise, search by exact username match (case-sensitive)
+        for (user in Map.vals(appState.users)) {
+            if (user.username == input) {
+                return ?user.id;
+            };
+        };
+        null;
+    };
+
+    private func pay_internal(
         from_id : Types.UserId,
-        to_target_id : Text, // Can be a UserId or a ProjectId
+        to_target_input : Text,
         token_project_id : Types.ProjectId,
         amount : Nat,
-    ) : async () {
-        if (not isAdmin(caller)) {
-            throw Error.reject("Not authorized: Must be Admin to execute payments.");
+    ) : async Result.Result<(), Text> {
+        let to_target_id = switch (resolve_user_id(to_target_input)) {
+            case (?id) id;
+            case null return #err("Recipient username not found.");
+        };
+
+        if (from_id == to_target_id) {
+            return #err("Cannot transfer tokens to yourself.");
         };
 
         let from_bal = get_balance(from_id, token_project_id);
         if (from_bal.liquid < amount) {
-            throw Error.reject("Insufficient liquid tokens.");
+            return #err("Insufficient liquid tokens.");
         };
 
         let to_bal = get_balance(to_target_id, token_project_id);
@@ -248,20 +245,17 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
 
         set_balance(from_id, token_project_id, new_from_bal);
         set_balance(to_target_id, token_project_id, new_to_bal);
+        #ok(());
     };
 
-    public shared ({ caller }) func stake(
+    private func stake_internal(
         holder_id : Types.UserId,
         token_project_id : Types.ProjectId,
         amount : Nat,
-    ) : async () {
-        if (not isAdmin(caller)) {
-            throw Error.reject("Not authorized: Must be Admin to execute stakes.");
-        };
-
+    ) : async Result.Result<(), Text> {
         let bal = get_balance(holder_id, token_project_id);
         if (bal.liquid < amount) {
-            throw Error.reject("Insufficient liquid tokens to stake.");
+            return #err("Insufficient liquid tokens to stake.");
         };
 
         let new_bal : Types.Balance = {
@@ -270,9 +264,59 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         };
 
         set_balance(holder_id, token_project_id, new_bal);
+        #ok(());
+    };
+
+    private func get_user_internal(user_id : Types.UserId) : ?Types.User {
+        Map.get(appState.users, Map.thash, user_id);
+    };
+
+    private func get_all_projects_internal() : [Types.Project] {
+        Iter.toArray(Map.vals(appState.projects));
+    };
+
+    private func get_all_balances_internal(user_id : Types.UserId) : [(Types.ProjectId, Types.Balance)] {
+        var bals : [(Types.ProjectId, Types.Balance)] = [];
+        for (proj in get_all_projects_internal().vals()) {
+            let b = get_balance(user_id, proj.id);
+            if (b.liquid > 0 or b.staked > 0) {
+                bals := Array.concat(bals, [(proj.id, b)]);
+            };
+        };
+        bals;
     };
 
     // --- Http server methods ---
+    transient let app = Liminal.App({
+        middleware = [
+            // createNFCProtectionMiddleware(),
+            AssetsMiddleware.new(assetMiddlewareConfig),
+            RouterMiddleware.new(
+                Routes.routerConfig(
+                    Principal.toText(canisterId),
+                    {
+                        mint = mint_internal;
+                        pay = pay_internal;
+                        stake = stake_internal;
+                        getUser = get_user_internal;
+                        getProjects = get_all_projects_internal;
+                        getBalances = get_all_balances_internal;
+                    },
+                )
+            ),
+        ];
+        errorSerializer = Liminal.defaultJsonErrorSerializer;
+        candidRepresentationNegotiator = Liminal.defaultCandidRepresentationNegotiator;
+        logger = Liminal.buildDebugLogger(#info);
+        urlNormalization = {
+            usernameIsCaseSensitive = false;
+            pathIsCaseSensitive = true;
+            queryKeysAreCaseSensitive = false;
+            removeEmptyPathSegments = true;
+            resolvePathDotSegments = true;
+            preserveTrailingSlash = false;
+        };
+    });
 
     public query func http_request(request : Liminal.RawQueryHttpRequest) : async Liminal.RawQueryHttpResponse {
         app.http_request(request);
