@@ -7,6 +7,7 @@ import Nat8 "mo:core/Nat8";
 import Nat32 "mo:core/Nat32";
 import Blob "mo:core/Blob";
 import Sha256 "mo:sha2/Sha256";
+import Debug "mo:core/Debug";
 
 module {
     public func hexToNat(hexString : Text) : Nat {
@@ -64,6 +65,7 @@ module {
     };
 
     public func scan(cmacs : [Text], url : Text, scan_count : Nat) : Nat {
+        Debug.print("Scan.scan called with URL: " # url);
         let full_query = Iter.toArray(Text.split(url, #char '?'));
         if (full_query.size() != 2) {
             return 0;
@@ -71,25 +73,40 @@ module {
 
         let queries = Iter.toArray(Text.split(full_query[1], #char '&'));
 
-        // if (queries.size() != 3) {
-        //     return 0;
-        // };
+        var counterOpt : ?Text = null;
+        var cmacOpt : ?Text = null;
 
-        if (queries.size() != 3 and queries.size() != 4) {
-            return 0;
+        for (q in queries.vals()) {
+            let parts = Iter.toArray(Text.split(q, #char '='));
+            if (parts.size() == 2) {
+                if (parts[0] == "ctr") {
+                    counterOpt := ?parts[1];
+                } else if (parts[0] == "cmac") {
+                    cmacOpt := ?parts[1];
+                };
+            };
         };
 
-        let cmac_query = Iter.toArray(Text.split(queries[2], #char '='));
-        let counter_query = Iter.toArray(Text.split(queries[1], #char '='));
-
-        if (cmac_query.size() != 2 or counter_query.size() != 2 or cmac_query[0] != "cmac" or counter_query[0] != "ctr") {
-            return 0;
+        let counter_str = switch (counterOpt) {
+            case (?val) val;
+            case null {
+                Debug.print("CMAC parsing failed: Missing ctr parameter.");
+                return 0;
+            };
         };
 
-        var counter = hexToNat(counter_query[1]);
+        let cmac_str = switch (cmacOpt) {
+            case (?val) val;
+            case null {
+                Debug.print("CMAC parsing failed: Missing cmac parameter.");
+                return 0;
+            };
+        };
+
+        var counter = hexToNat(counter_str);
 
         let input_bytes = Array.map(
-            Text.toArray(cmac_query[1]),
+            Text.toArray(cmac_str),
             func(c : Char) : Nat8 {
                 Nat8.fromNat(Nat32.toNat(Char.toNat32(c)));
             },
@@ -106,7 +123,10 @@ module {
         var res = counter;
 
         for (i in Nat.rangeInclusive(0, sha.size() - 1)) {
-            if (Nat8.toNat(sha[i]) != hexToNat(subText(cmacs[counter - 1], i * 2, i * 2 + 2))) {
+            let shaByte = Nat8.toNat(sha[i]);
+            let targetByte = hexToNat(subText(cmacs[counter - 1], i * 2, i * 2 + 2));
+            if (shaByte != targetByte) {
+                Debug.print("Byte mismatch at index " # Nat.toText(i) # ". Expected: " # Nat.toText(targetByte) # " Got: " # Nat.toText(shaByte));
                 res := 0;
             };
         };

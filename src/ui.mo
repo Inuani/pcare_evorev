@@ -205,14 +205,14 @@ module UI {
     "</div>\n" #
     documentTail;
 
-    public func renderSuccess(message : Text, returnUserId : Text) : Text = documentHead("Success - PCARE") #
+    public func renderSuccess(message : Text, tokenValue : Text) : Text = documentHead("Success - PCARE") #
     header("Transaction Complete") #
     "<div class='container'>\n" #
     "  <div class='success-box'>\n" #
     "    <h3>Success</h3>\n" #
     "    <p>" # message # "</p>\n" #
     "  </div>\n" #
-    "  <a href='/pcare?userId=" # returnUserId # "' class='btn btn-outline' style='text-align: center;'>Return to Dashboard</a>\n" #
+    "  <a href='/pcare?token=" # tokenValue # "' class='btn btn-outline' style='text-align: center;'>Return to Dashboard</a>\n" #
     "</div>\n" #
     documentTail;
 
@@ -220,6 +220,7 @@ module UI {
         user : Types.User,
         balances : [(Types.ProjectId, Types.Balance)],
         allProjects : [Types.Project],
+        tokenValue : Text,
     ) : Text {
         var html = documentHead("PCARE Dashboard") #
         header(user.username) #
@@ -265,8 +266,7 @@ module UI {
 
         // Stake Form
         html := html # "<h3>Stake Influence</h3>\n";
-        html := html # "<form action='/pcare/stake' method='POST' style='margin-bottom: 30px;'>\n";
-        html := html # "  <input type='hidden' name='userId' value='" # user.id # "'/>\n";
+        html := html # "<form action='/pcare/stake?token=" # tokenValue # "' method='POST' style='margin-bottom: 30px;'>\n";
         html := html # "  <div class='form-group'>\n";
         html := html # "    <label>Select Project</label>\n";
         html := html # "    <select name='projectId' required>\n" # projectOptions # "</select>\n";
@@ -280,8 +280,7 @@ module UI {
 
         // Pay Form
         html := html # "<h3>Transfer Tokens</h3>\n";
-        html := html # "<form action='/pcare/pay' method='POST' style='margin-bottom: 30px;'>\n";
-        html := html # "  <input type='hidden' name='userId' value='" # user.id # "'/>\n";
+        html := html # "<form action='/pcare/pay?token=" # tokenValue # "' method='POST' style='margin-bottom: 30px;'>\n";
         html := html # "  <div class='form-group'>\n";
         html := html # "    <label>Select Token</label>\n";
         html := html # "    <select name='projectId' required>\n" # projectOptions # "</select>\n";
@@ -300,8 +299,7 @@ module UI {
         // Mint Form (Only visible to Project Leads)
         if (ledProjectsOptions != "") {
             html := html # "<h3>Mint Rewards (Leads Only)</h3>\n";
-            html := html # "<form action='/pcare/mint' method='POST'>\n";
-            html := html # "  <input type='hidden' name='userId' value='" # user.id # "'/>\n";
+            html := html # "<form action='/pcare/mint?token=" # tokenValue # "' method='POST'>\n";
             html := html # "  <div class='form-group'>\n";
             html := html # "    <label>Select Project</label>\n";
             html := html # "    <select name='projectId' required>\n" # ledProjectsOptions # "</select>\n";

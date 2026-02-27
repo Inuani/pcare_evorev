@@ -8,7 +8,14 @@ import Option "mo:core/Option";
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";
 import Types "models/Types";
+import JWT "mo:jwt";
+import Time "mo:core/Time";
+import Blob "mo:core/Blob";
+import Scan "scan";
+import Float "mo:core/Float";
 import UI "ui";
+import HMAC "mo:hmac";
+import Debug "mo:core/Debug";
 
 module Routes {
 
@@ -19,6 +26,29 @@ module Routes {
         getUser : (Types.UserId) -> ?Types.User;
         getProjects : () -> [Types.Project];
         getBalances : (Types.UserId) -> [(Types.ProjectId, Types.Balance)];
+        getJwtSecret : () -> Blob;
+        getUidMapping : (Text) -> ?Types.UserId;
+        verifyNfc : (Text) -> Bool;
+    };
+
+    private func getAuthenticatedUserId(ctx : RouteContext.RouteContext) : ?Text {
+        switch (ctx.getIdentity()) {
+            case null null;
+            case (?identity) {
+                if (identity.isAuthenticated()) {
+                    identity.getId();
+                } else {
+                    null;
+                };
+            };
+        };
+    };
+
+    private func getToken(ctx : RouteContext.RouteContext) : Text {
+        switch (ctx.getQueryParam("token")) {
+            case (?t) t;
+            case null "";
+        };
     };
 
     private func decodeForm(body : Text) : [(Text, Text)] {
@@ -56,11 +86,76 @@ module Routes {
                     ),
                 ),
                 Router.get(
+                    "/pcare/login",
+                    #update(
+                        #async_(
+                            func(ctx : RouteContext.RouteContext) : async* Liminal.HttpResponse {
+                                let uidOpt = ctx.getQueryParam("uid");
+                                let _ctrOpt = ctx.getQueryParam("ctr");
+                                let _cmacOpt = ctx.getQueryParam("cmac");
+
+                                // 1. Extract and map UID to UserID
+                                let userId = switch (uidOpt) {
+                                    case null return ctx.buildResponse(#unauthorized, #html(UI.renderError("Missing UID")));
+                                    case (?uid) {
+                                        switch (bCtx.getUidMapping(uid)) {
+                                            case null return ctx.buildResponse(#unauthorized, #html(UI.renderError("Unregistered NFC Tag")));
+                                            case (?id) id;
+                                        };
+                                    };
+                                };
+
+                                // 2. Validate cryptographic scan
+                                Debug.print("Login requested. Extracting NFC data from: " # ctx.httpContext.request.url);
+                                if (not bCtx.verifyNfc(ctx.httpContext.request.url)) {
+                                    return ctx.buildResponse(#unauthorized, #html(UI.renderError("Invalid NFC Tap Signature.")));
+                                };
+
+                                // 3. Build JWT
+                                let nowSeconds = Float.fromInt(Time.now() / 1_000_000_000);
+                                let expSeconds = nowSeconds + 3600.0; // 1 hour session
+
+                                let unsignedToken : JWT.UnsignedToken = {
+                                    header = [
+                                        ("alg", #string("HS256")),
+                                        ("typ", #string("JWT")),
+                                    ];
+                                    payload = [
+                                        ("sub", #string(userId)),
+                                        ("iat", #number(#int(Time.now() / 1_000_000_000))),
+                                        ("exp", #number(#float(expSeconds))),
+                                    ];
+                                };
+
+                                let unsignedBlob = JWT.toBlobUnsigned(unsignedToken);
+
+                                let secretArray = Blob.toArray(bCtx.getJwtSecret());
+                                let unsignedArray = Blob.toArray(unsignedBlob);
+                                let signatureBytes = HMAC.generate(secretArray, unsignedArray.vals(), #sha256);
+
+                                let signedToken : JWT.Token = {
+                                    header = unsignedToken.header;
+                                    payload = unsignedToken.payload;
+                                    signature = {
+                                        algorithm = "HS256";
+                                        value = signatureBytes;
+                                        message = unsignedBlob;
+                                    };
+                                };
+
+                                let jwtText = JWT.toText(signedToken);
+
+                                ctx.buildResponse(#found, #custom({ headers = [("Location", "/pcare?token=" # jwtText)]; body = Text.encodeUtf8("Redirecting...") }));
+                            }
+                        )
+                    ),
+                ),
+                Router.get(
                     "/pcare",
                     #update(
                         #async_(
                             func(ctx : RouteContext.RouteContext) : async* Liminal.HttpResponse {
-                                let userIdOpt = ctx.getQueryParam("userId");
+                                let userIdOpt = getAuthenticatedUserId(ctx);
                                 switch (userIdOpt) {
                                     case null {
                                         ctx.buildResponse(#unauthorized, #html(UI.renderError("Missing or invalid NFC Tag.")));
@@ -73,7 +168,7 @@ module Routes {
                                             case (?user) {
                                                 let balances = bCtx.getBalances(userId);
                                                 let projects = bCtx.getProjects();
-                                                ctx.buildResponse(#ok, #html(UI.renderDashboard(user, balances, projects)));
+                                                ctx.buildResponse(#ok, #html(UI.renderDashboard(user, balances, projects, getToken(ctx))));
                                             };
                                         };
                                     };
@@ -89,7 +184,7 @@ module Routes {
                             func(ctx : RouteContext.RouteContext) : async* Liminal.HttpResponse {
                                 let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Missing request body.")));
                                 let form = decodeForm(bodyText);
-                                let userIdOpt = getFormValue(form, "userId");
+                                let userIdOpt = getAuthenticatedUserId(ctx);
 
                                 switch (userIdOpt) {
                                     case null {
@@ -120,7 +215,7 @@ module Routes {
 
                                         switch (result) {
                                             case (#ok(())) {
-                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Successfully minted tokens.", userId)));
+                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Successfully minted tokens.", getToken(ctx))));
                                             };
                                             case (#err(msg)) {
                                                 ctx.buildResponse(#badRequest, #html(UI.renderError(msg)));
@@ -139,7 +234,7 @@ module Routes {
                             func(ctx : RouteContext.RouteContext) : async* Liminal.HttpResponse {
                                 let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Missing request body.")));
                                 let form = decodeForm(bodyText);
-                                let userIdOpt = getFormValue(form, "userId");
+                                let userIdOpt = getAuthenticatedUserId(ctx);
 
                                 switch (userIdOpt) {
                                     case null {
@@ -167,7 +262,7 @@ module Routes {
                                         let result = await bCtx.pay(userId, recId, projId, amount);
                                         switch (result) {
                                             case (#ok(())) {
-                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Transfer successful.", userId)));
+                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Transfer successful.", getToken(ctx))));
                                             };
                                             case (#err(msg)) {
                                                 ctx.buildResponse(#badRequest, #html(UI.renderError(msg)));
@@ -186,7 +281,7 @@ module Routes {
                             func(ctx : RouteContext.RouteContext) : async* Liminal.HttpResponse {
                                 let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Missing request body.")));
                                 let form = decodeForm(bodyText);
-                                let userIdOpt = getFormValue(form, "userId");
+                                let userIdOpt = getAuthenticatedUserId(ctx);
 
                                 switch (userIdOpt) {
                                     case null {
@@ -210,7 +305,7 @@ module Routes {
                                         let result = await bCtx.stake(userId, projId, amount);
                                         switch (result) {
                                             case (#ok(())) {
-                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Successfully staked tokens.", userId)));
+                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Successfully staked tokens.", getToken(ctx))));
                                             };
                                             case (#err(msg)) {
                                                 ctx.buildResponse(#badRequest, #html(UI.renderError(msg)));

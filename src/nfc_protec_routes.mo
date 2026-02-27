@@ -1,6 +1,8 @@
 import Text "mo:core/Text";
 import Map "mo:core/Map";
 import Iter "mo:core/Iter";
+import Debug "mo:core/Debug";
+import Nat "mo:core/Nat";
 import Array "mo:core/Array";
 import Option "mo:core/Option";
 import Scan "scan";
@@ -206,13 +208,18 @@ module {
                                 case (?tagData) {
                                     let counter = Scan.scan(tagData.cmacs_, url, tagData.scan_count_);
                                     if (counter > 0) {
+                                        Debug.print("CMAC Verification Success! Counter: " # Nat.toText(counter));
                                         ignore updateScanCount(path, uid, counter);
                                         true;
                                     } else {
+                                        Debug.print("CMAC Verification Failed. Counter returned 0.");
                                         false;
                                     };
                                 };
-                                case null { false }; // Tag not registered for this route
+                                case null {
+                                    Debug.print("Tag UID " # uid # " not found in protected route tags array.");
+                                    false;
+                                };
                             };
                         };
                         case null { false }; // No UID in URL

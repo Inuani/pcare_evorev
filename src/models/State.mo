@@ -1,6 +1,7 @@
 import Types "Types";
 import Map "mo:map/Map";
 import Text "mo:core/Text";
+import Blob "mo:core/Blob";
 
 module {
     public type AppState = {
@@ -8,6 +9,7 @@ module {
         var projects : Map.Map<Types.ProjectId, Types.Project>;
         var nfc_mapping : Map.Map<Types.NfcUid, Types.UserId>;
         var ledger : Map.Map<(Text, Types.TokenId), Types.Balance>;
+        var jwt_secret : Blob;
     };
 
     public func init() : AppState {
@@ -16,6 +18,7 @@ module {
             var projects = Map.new<Types.ProjectId, Types.Project>();
             var nfc_mapping = Map.new<Types.NfcUid, Types.UserId>();
             var ledger = Map.new<(Text, Types.TokenId), Types.Balance>();
+            var jwt_secret = "\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00";
         };
     };
 };

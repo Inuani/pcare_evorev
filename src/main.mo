@@ -12,6 +12,8 @@ import Routes "routes";
 import Scan "scan";
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
+import JwtMiddleware "mo:liminal/Middleware/JWT";
+import JWT "mo:jwt";
 import Map "mo:map/Map";
 import RouterMiddleware "mo:liminal/Middleware/Router";
 import App "mo:liminal/App";
@@ -50,35 +52,17 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         store = assetStore;
     };
 
-    func createNFCProtectionMiddleware() : App.Middleware {
-        {
-            name = "NFC Protection";
-            handleQuery = func(context : HttpContext.HttpContext, next : App.Next) : App.QueryResult {
-                if (protected_routes_storage.isProtectedRoute(context.request.url)) {
-                    return #upgrade; // Force verification in update call
-                };
-                next();
+    func createJWTMiddleware() : App.Middleware {
+        JwtMiddleware.new({
+            validation = {
+                expiration = true;
+                notBefore = false;
+                issuer = #skip;
+                audience = #skip;
+                signature = #key(#symmetric(appState.jwt_secret));
             };
-            handleUpdate = func(context : HttpContext.HttpContext, next : App.NextAsync) : async* App.HttpResponse {
-                let url = context.request.url;
-                if (protected_routes_storage.isProtectedRoute(url)) {
-                    let routes_array = protected_routes_storage.listProtectedRoutes();
-                    for ((path, protection) in routes_array.vals()) {
-                        if (Text.contains(url, #text path)) {
-                            if (not protected_routes_storage.verifyRouteAccess(path, url)) {
-                                return {
-                                    statusCode = 403;
-                                    headers = [("Content-Type", "text/html")];
-                                    body = ?Text.encodeUtf8(InvalidScan.generateInvalidScanPage());
-                                    streamingStrategy = null;
-                                };
-                            };
-                        };
-                    };
-                };
-                await* next();
-            };
-        };
+            locations = [#queryString("token")];
+        });
     };
 
     // --- Admin Endpoints ---
@@ -289,7 +273,7 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
     // --- Http server methods ---
     transient let app = Liminal.App({
         middleware = [
-            // createNFCProtectionMiddleware(),
+            createJWTMiddleware(),
             AssetsMiddleware.new(assetMiddlewareConfig),
             RouterMiddleware.new(
                 Routes.routerConfig(
@@ -301,6 +285,13 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
                         getUser = get_user_internal;
                         getProjects = get_all_projects_internal;
                         getBalances = get_all_balances_internal;
+                        getJwtSecret = func() { appState.jwt_secret };
+                        getUidMapping = func(uid) {
+                            Map.get(appState.nfc_mapping, Map.thash, uid);
+                        };
+                        verifyNfc = func(url) {
+                            protected_routes_storage.verifyRouteAccess("pcare/login", url);
+                        };
                     },
                 )
             ),

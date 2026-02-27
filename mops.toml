@@ -1,3 +1,5 @@
 [dependencies]
 liminal = "3.1.0"
 sha2 = "0.1.6"
+jwt = "2.1.1"
+hmac = "1.1.0"
