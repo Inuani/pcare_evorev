@@ -87,6 +87,13 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         userId;
     };
 
+    public shared query ({ caller }) func get_all_users() : async [Types.User] {
+        if (not isAdmin(caller)) {
+            throw Error.reject("Not authorized: Must be Admin to list users.");
+        };
+        Iter.toArray(Map.vals(appState.users));
+    };
+
     public shared ({ caller }) func add_project(id : Text, name : Text, lead_id : Text) : async () {
         if (not isAdmin(caller)) {
             throw Error.reject("Not authorized: Must be Admin to add projects.");
