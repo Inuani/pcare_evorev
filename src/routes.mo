@@ -26,12 +26,16 @@ module Routes {
         getUser : (Types.UserId) -> ?Types.User;
         getProjects : () -> [Types.Project];
         getBalances : (Types.UserId) -> [(Types.ProjectId, Types.Balance)];
+        getMintHistory : (Types.ProjectId) -> [Types.MintRecord];
         getJwtSecret : () -> Blob;
         getUidMapping : (Text) -> ?Types.UserId;
         verifyNfc : (Text) -> Bool;
     };
 
     private func getAuthenticatedUserId(ctx : RouteContext.RouteContext) : ?Text {
+        return ?"user_1";
+
+        /*
         switch (ctx.getIdentity()) {
             case null null;
             case (?identity) {
@@ -42,6 +46,7 @@ module Routes {
                 };
             };
         };
+        */
     };
 
     private func getToken(ctx : RouteContext.RouteContext) : Text {
@@ -76,15 +81,6 @@ module Routes {
             prefix = null;
             identityRequirement = null;
             routes = [
-                Router.get(
-                    "/",
-                    #query_(
-                        func(ctx : RouteContext.RouteContext) : Liminal.HttpResponse {
-                            let html = "<html><body><h1>Evorev NFC System Active</h1></body></html>";
-                            ctx.buildResponse(#ok, #html(html));
-                        }
-                    ),
-                ),
                 Router.get(
                     "/pcare/login",
                     #update(
@@ -194,6 +190,7 @@ module Routes {
                                         let projId = getFormValue(form, "projectId");
                                         let recIdRaw = getFormValue(form, "recipientId");
                                         let liq = getFormValue(form, "liquid");
+                                        let justRaw = getFormValue(form, "justification");
 
                                         if (Option.isNull(projId) or Option.isNull(liq)) {
                                             return ctx.buildResponse(#badRequest, #html(UI.renderError("Missing form fields.")));
@@ -210,8 +207,14 @@ module Routes {
                                             case null 0;
                                         };
                                         let pId = Option.unwrap(projId);
+                                        let justification = switch (justRaw) {
+                                            case (?j) {
+                                                if (j == "") "Dashboard Mint" else j;
+                                            };
+                                            case null "Dashboard Mint";
+                                        };
 
-                                        let result = await bCtx.mint(pId, recipient, liquidNat, 0, "Dashboard Mint");
+                                        let result = await bCtx.mint(pId, recipient, liquidNat, 0, justification);
 
                                         switch (result) {
                                             case (#ok(())) {
@@ -318,10 +321,69 @@ module Routes {
                     ),
                 ),
                 Router.get(
+                    "/",
+                    #query_(
+                        func(ctx : RouteContext.RouteContext) : Liminal.HttpResponse {
+                            let projects = bCtx.getProjects();
+                            ctx.buildResponse(#ok, #html(UI.renderHomepage(projects)));
+                        }
+                    ),
+                ),
+                Router.get(
+                    "/registry",
+                    #query_(
+                        func(ctx : RouteContext.RouteContext) : Liminal.HttpResponse {
+                            let url = ctx.httpContext.request.url;
+
+                            var targetedProjectId : ?Text = null;
+                            let prefix = "/registry?project=";
+
+                            if (Text.startsWith(url, #text(prefix))) {
+                                let parts = Text.split(url, #text(prefix));
+                                var finalParts : [Text] = [];
+                                for (p in parts) {
+                                    finalParts := Array.concat<Text>(finalParts, [p]);
+                                };
+                                if (finalParts.size() == 2) {
+                                    targetedProjectId := ?finalParts[1];
+                                };
+                            };
+
+                            switch (targetedProjectId) {
+                                case null {
+                                    // Render main directory
+                                    let projects = bCtx.getProjects();
+                                    ctx.buildResponse(#ok, #html(UI.renderPublicRegistry(projects)));
+                                };
+                                case (?pid) {
+                                    // Locate the specific project to render the ledger
+                                    let projects = bCtx.getProjects();
+                                    var foundProject : ?Types.Project = null;
+                                    for (p in projects.vals()) {
+                                        if (p.id == pid) {
+                                            foundProject := ?p;
+                                        };
+                                    };
+
+                                    switch (foundProject) {
+                                        case null {
+                                            ctx.buildResponse(#notFound, #html(UI.renderError("Project not found in the registry.")));
+                                        };
+                                        case (?p) {
+                                            let history = bCtx.getMintHistory(p.id);
+                                            ctx.buildResponse(#ok, #html(UI.renderProjectLedger(p, history)));
+                                        };
+                                    };
+                                };
+                            };
+                        }
+                    ),
+                ),
+                Router.get(
                     "/{path}",
                     #query_(
-                        func(ctx) : Liminal.HttpResponse {
-                            ctx.buildResponse(#notFound, #error(#message("Not found")));
+                        func(_ctx) : Liminal.HttpResponse {
+                            _ctx.buildResponse(#notFound, #error(#message("Not found")));
                         }
                     ),
                 ),

@@ -1,5 +1,6 @@
 import Text "mo:core/Text";
 import Nat "mo:core/Nat";
+import Int "mo:core/Int";
 import Types "models/Types";
 
 module UI {
@@ -309,8 +310,12 @@ module UI {
             html := html # "    <input type='text' name='recipientId' placeholder='e.g. LX'/>\n";
             html := html # "  </div>\n";
             html := html # "  <div class='form-group'>\n";
+            html := html # "    <label>Justification / Reason</label>\n";
+            html := html # "    <input type='text' name='justification' required placeholder='e.g. Genesis block distribution'/>\n";
+            html := html # "  </div>\n";
+            html := html # "  <div class='form-group'>\n";
             html := html # "    <label>Liquid Amount</label>\n";
-            html := html # "    <input type='number' name='liquid' min='0' value='100' required/>\n";
+            html := html # "    <input type='number' name='liquid' min='1' value='100' required/>\n";
             html := html # "  </div>\n";
             html := html # "  <button type='submit' class='btn'>Authorize Mint</button>\n";
             html := html # "</form>\n";
@@ -321,6 +326,113 @@ module UI {
         html := html # "</div>\n"; // End container
         html := html # documentTail;
 
+        html;
+    };
+
+    // --- Public Registry Views ---
+
+    public func renderHomepage(projects : [Types.Project]) : Text {
+        var html = documentHead("Evorev - Accueil") #
+        header("Evorev") #
+        "<div class='container'>\n";
+
+        // Mission Statement
+        html := html # "<div class='card'>\n";
+        html := html # "<h2>Notre Mission</h2>\n";
+        html := html # "<p style='font-size: 1.1rem; line-height: 1.6;'>Faire émerger avec les nouvelles générations des cadres de travail adaptés à notre époque, en unissant les dimensions sociales, économiques et artistiques pour mettre en place des projets où sens, contribution, expression et épanouissement se rencontrent.</p>\n";
+        html := html # "</div>\n";
+
+        // Projects List
+        html := html # "<div class='card'>\n";
+        html := html # "<h2>Projets Evorev</h2>\n";
+        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Liste des projets actifs et leur registre public.</p>\n";
+
+        if (projects.size() == 0) {
+            html := html # "<p style='color: #888;'>Aucun projet trouvé.</p>\n";
+        } else {
+            for (proj in projects.vals()) {
+                html := html # "<div class='balance-item'>\n";
+                html := html # "  <span class='token-name'>" # proj.name # " (" # proj.id # ")</span>\n";
+                html := html # "  <div style='text-align: right;'>\n";
+                html := html # "    <div class='balance-amount'>" # Nat.toText(proj.current_supply) # " <span style='font-size: 0.8rem; color: #aaa'>Offre Totale</span></div>\n";
+                html := html # "  </div>\n";
+                html := html # "  <a href='/registry?project=" # proj.id # "' class='btn btn-outline' style='font-size: 0.8rem; padding: 6px 12px; margin-top: 0;'>Voir le Registre</a>\n";
+                html := html # "</div>\n";
+            };
+        };
+
+        html := html # "</div>\n</div>\n" # documentTail;
+        html;
+    };
+
+    public func renderPublicRegistry(projects : [Types.Project]) : Text {
+        var html = documentHead("Evorev Public Registry") #
+        header("Project Registry") #
+        "<div class='container'>\n";
+
+        html := html # "<div class='card'>\n";
+        html := html # "<h2>Active Projects</h2>\n";
+        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Public macroeconomic ledger.</p>\n";
+
+        if (projects.size() == 0) {
+            html := html # "<p style='color: #888;'>No projects found.</p>\n";
+        } else {
+            for (proj in projects.vals()) {
+                html := html # "<div class='balance-item'>\n";
+                html := html # "  <span class='token-name'>" # proj.name # " (" # proj.id # ")</span>\n";
+                html := html # "  <div style='text-align: right;'>\n";
+                html := html # "    <div class='balance-amount'>" # Nat.toText(proj.current_supply) # " <span style='font-size: 0.8rem; color: #aaa'>Total Supply</span></div>\n";
+                html := html # "  </div>\n";
+                html := html # "  <a href='/registry?project=" # proj.id # "' class='btn btn-outline' style='font-size: 0.8rem; padding: 6px 12px; margin-top: 0;'>View Ledger</a>\n";
+                html := html # "</div>\n";
+            };
+        };
+
+        html := html # "</div>\n</div>\n" # documentTail;
+        html;
+    };
+
+    public func renderProjectLedger(project : Types.Project, history : [Types.MintRecord]) : Text {
+        var html = documentHead("Ledger: " # project.name) #
+        header("Ledger: " # project.id) #
+        "<div class='container'>\n";
+
+        // Macro Statistics
+        html := html # "<div class='card'>\n";
+        html := html # "<h2>Macro Tokenomics</h2>\n";
+        html := html # "<div style='display: flex; justify-content: space-between; margin-bottom: 10px;'><span>Total Supply:</span> <span class='balance-amount'>" # Nat.toText(project.current_supply) # "</span></div>\n";
+        html := html # "<div style='display: flex; justify-content: space-between; margin-bottom: 10px;'><span>Circulating (Liquid):</span> <span class='balance-amount' style='border-color: #aaa;'>" # Nat.toText(project.total_liquid) # "</span></div>\n";
+        html := html # "<div style='display: flex; justify-content: space-between;'><span>Locked (Staked):</span> <span class='balance-amount' style='border-color: #aaa;'>" # Nat.toText(project.total_staked) # "</span></div>\n";
+        html := html # "</div>\n";
+
+        // Mint History Ledger
+        html := html # "<div class='card'>\n";
+        html := html # "<h2>Minting History</h2>\n";
+        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Cryptographic proof-of-issuance log.</p>\n";
+
+        if (history.size() == 0) {
+            html := html # "<p style='color: #888;'>No mint events recorded yet.</p>\n";
+        } else {
+            // Simplified table styling within the neon aesthetic
+            html := html # "<table style='width: 100%; border-collapse: collapse; text-align: left;'>\n";
+            html := html # "  <tr style='border-bottom: 2px solid #000;'>\n";
+            html := html # "    <th style='padding: 10px 0;'>Block Time</th>\n";
+            html := html # "    <th style='padding: 10px 0;'>Amount</th>\n";
+            html := html # "    <th style='padding: 10px 0;'>Justification</th>\n";
+            html := html # "  </tr>\n";
+
+            for (record in history.vals()) {
+                html := html # "  <tr style='border-bottom: 1px dashed #aaa;'>\n";
+                html := html # "    <td style='padding: 15px 0; font-size: 0.8rem; color: #666;'>" # Nat.toText(Int.abs(record.timestamp)) # "</td>\n";
+                html := html # "    <td style='padding: 15px 0; font-weight: bold; color: var(--brand-color); background: #000; text-align: center; width: 80px;'>+" # Nat.toText(record.amount_liquid) # "</td>\n";
+                html := html # "    <td style='padding: 15px 10px; font-size: 0.9rem;'>" # record.justification # "</td>\n";
+                html := html # "  </tr>\n";
+            };
+            html := html # "</table>\n";
+        };
+
+        html := html # "<a href='/registry' class='btn btn-outline' style='margin-top: 30px; display: block; text-align: center;'>Back to Registry</a>\n";
+        html := html # "</div>\n</div>\n" # documentTail;
         html;
     };
 };

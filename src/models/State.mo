@@ -9,6 +9,7 @@ module {
         var projects : Map.Map<Types.ProjectId, Types.Project>;
         var nfc_mapping : Map.Map<Types.NfcUid, Types.UserId>;
         var ledger : Map.Map<(Text, Types.TokenId), Types.Balance>;
+        var mint_history : Map.Map<Types.ProjectId, [Types.MintRecord]>;
         var jwt_secret : Blob;
     };
 
@@ -18,6 +19,7 @@ module {
             var projects = Map.new<Types.ProjectId, Types.Project>();
             var nfc_mapping = Map.new<Types.NfcUid, Types.UserId>();
             var ledger = Map.new<(Text, Types.TokenId), Types.Balance>();
+            var mint_history = Map.new<Types.ProjectId, [Types.MintRecord]>();
             var jwt_secret = "\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00";
         };
     };

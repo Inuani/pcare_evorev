@@ -1,6 +1,7 @@
 import Liminal "mo:liminal";
 import Principal "mo:core/Principal";
 import Error "mo:core/Error";
+import Time "mo:core/Time";
 import Result "mo:core/Result";
 import Iter "mo:core/Iter";
 import AssetsMiddleware "mo:liminal/Middleware/Assets";
@@ -108,6 +109,8 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
             id = id;
             name = name;
             current_supply = 0;
+            total_liquid = 0;
+            total_staked = 0;
             lead_id = lead_id;
             treasury = [];
         };
@@ -174,9 +177,24 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
 
         let total_mint = amount_liquid + amount_staked;
         let updatedProject = {
-            project with current_supply = project.current_supply + total_mint
+            project with
+            current_supply = project.current_supply + total_mint;
+            total_liquid = project.total_liquid + amount_liquid;
+            total_staked = project.total_staked + amount_staked;
         };
         ignore Map.put(appState.projects, Map.thash, project_id, updatedProject);
+
+        let newRecord : Types.MintRecord = {
+            timestamp = Time.now() / 1_000_000_000;
+            amount_liquid = amount_liquid;
+            justification = _justification;
+        };
+
+        let history = switch (Map.get(appState.mint_history, Map.thash, project_id)) {
+            case null [];
+            case (?h) h;
+        };
+        ignore Map.put(appState.mint_history, Map.thash, project_id, Array.concat(history, [newRecord]));
 
         let bal = get_balance(recipient_id, project_id);
         let new_bal : Types.Balance = {
@@ -254,6 +272,19 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
             staked = bal.staked + amount;
         };
 
+        // Also move global liquidity tracking to staked side
+        switch (Map.get(appState.projects, Map.thash, token_project_id)) {
+            case null {};
+            case (?p) {
+                let updatedP = {
+                    p with
+                    total_liquid = p.total_liquid - amount;
+                    total_staked = p.total_staked + amount;
+                };
+                ignore Map.put(appState.projects, Map.thash, token_project_id, updatedP);
+            };
+        };
+
         set_balance(holder_id, token_project_id, new_bal);
         #ok(());
     };
@@ -277,6 +308,13 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         bals;
     };
 
+    private func get_mint_history_internal(project_id : Types.ProjectId) : [Types.MintRecord] {
+        switch (Map.get(appState.mint_history, Map.thash, project_id)) {
+            case null [];
+            case (?h) h;
+        };
+    };
+
     // --- Http server methods ---
     transient let app = Liminal.App({
         middleware = [
@@ -292,6 +330,7 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
                         getUser = get_user_internal;
                         getProjects = get_all_projects_internal;
                         getBalances = get_all_balances_internal;
+                        getMintHistory = get_mint_history_internal;
                         getJwtSecret = func() { appState.jwt_secret };
                         getUidMapping = func(uid) {
                             Map.get(appState.nfc_mapping, Map.thash, uid);
