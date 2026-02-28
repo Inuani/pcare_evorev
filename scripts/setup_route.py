@@ -47,6 +47,7 @@ def setup_route_and_program(
     use_random_key: bool = False,
     ic_mode: bool = False,
     count: int = 20000,
+    username: str = None,
 ) -> bool:
     """Setup protected route and program NFC card."""
     try:
@@ -217,6 +218,23 @@ def setup_route_and_program(
             return False
         print("Uploaded CMACs successfully")
 
+        # Register user if username provided or interactively ask for pcare/login
+        user_to_add = username
+        if not user_to_add and "pcare" in page:
+            print("\n--- User Registration ---")
+            ans = input(f"Enter username for this new NFC tag [{card_uid}] (or press Enter to skip): ").strip()
+            if ans:
+                user_to_add = ans
+
+        if user_to_add:
+            print(f"Registering user '{user_to_add}' with canister...")
+            cmd = f'dfx canister call {ic_flag}{canister_name} add_user \'("{user_to_add}", "{card_uid}")\''
+            exit_code, stdout, stderr = run_command(cmd)
+            if exit_code != 0:
+                print(f"Error adding user: {stderr}")
+            else:
+                print(f"Added user '{user_to_add}' with UID '{card_uid}' successfully!")
+
         # Invalidate cache
         # cmd = f'dfx canister call {ic_flag}{canister_name} invalidate_cache'
         # exit_code, stdout, stderr = run_command(cmd)
@@ -262,11 +280,15 @@ def main():
         default=20000,
         help="Number of CMACs to generate (default: 20000)",
     )
+    parser.add_argument(
+        "--username",
+        help="Username to automatically register with the NFC tag (calls add_user)",
+    )
 
     args = parser.parse_args()
 
     if setup_route_and_program(
-        args.canister_id, args.page, args.params, args.random_key, args.ic, args.count
+        args.canister_id, args.page, args.params, args.random_key, args.ic, args.count, args.username
     ):
         print("\nSetup completed successfully!")
     else:
