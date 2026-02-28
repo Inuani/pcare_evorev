@@ -92,10 +92,10 @@ module Routes {
 
                                 // 1. Extract and map UID to UserID
                                 let userId = switch (uidOpt) {
-                                    case null return ctx.buildResponse(#unauthorized, #html(UI.renderError("Missing UID")));
+                                    case null return ctx.buildResponse(#unauthorized, #html(UI.renderError("UID manquant")));
                                     case (?uid) {
                                         switch (bCtx.getUidMapping(uid)) {
-                                            case null return ctx.buildResponse(#unauthorized, #html(UI.renderError("Unregistered NFC Tag")));
+                                            case null return ctx.buildResponse(#unauthorized, #html(UI.renderError("Tag NFC non enregistré")));
                                             case (?id) id;
                                         };
                                     };
@@ -104,7 +104,7 @@ module Routes {
                                 // 2. Validate cryptographic scan
                                 Debug.print("Login requested. Extracting NFC data from: " # ctx.httpContext.request.url);
                                 if (not bCtx.verifyNfc(ctx.httpContext.request.url)) {
-                                    return ctx.buildResponse(#unauthorized, #html(UI.renderError("Invalid NFC Tap Signature.")));
+                                    return ctx.buildResponse(#unauthorized, #html(UI.renderError("Signature de scan NFC invalide.")));
                                 };
 
                                 // 3. Build JWT
@@ -154,12 +154,12 @@ module Routes {
                                 let userIdOpt = getAuthenticatedUserId(ctx);
                                 switch (userIdOpt) {
                                     case null {
-                                        ctx.buildResponse(#unauthorized, #html(UI.renderError("Missing or invalid NFC Tag.")));
+                                        ctx.buildResponse(#unauthorized, #html(UI.renderError("Tag NFC manquant ou invalide.")));
                                     };
                                     case (?userId) {
                                         switch (bCtx.getUser(userId)) {
                                             case null {
-                                                ctx.buildResponse(#unauthorized, #html(UI.renderError("User profile not found.")));
+                                                ctx.buildResponse(#unauthorized, #html(UI.renderError("Profil utilisateur introuvable.")));
                                             };
                                             case (?user) {
                                                 let balances = bCtx.getBalances(userId);
@@ -178,13 +178,13 @@ module Routes {
                     #update(
                         #async_(
                             func(ctx : RouteContext.RouteContext) : async* Liminal.HttpResponse {
-                                let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Missing request body.")));
+                                let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Corps de requête manquant.")));
                                 let form = decodeForm(bodyText);
                                 let userIdOpt = getAuthenticatedUserId(ctx);
 
                                 switch (userIdOpt) {
                                     case null {
-                                        ctx.buildResponse(#unauthorized, #html(UI.renderError("Unauthorized.")));
+                                        ctx.buildResponse(#unauthorized, #html(UI.renderError("Non autorisé.")));
                                     };
                                     case (?userId) {
                                         let projId = getFormValue(form, "projectId");
@@ -193,7 +193,7 @@ module Routes {
                                         let justRaw = getFormValue(form, "justification");
 
                                         if (Option.isNull(projId) or Option.isNull(liq)) {
-                                            return ctx.buildResponse(#badRequest, #html(UI.renderError("Missing form fields.")));
+                                            return ctx.buildResponse(#badRequest, #html(UI.renderError("Champs de formulaire manquants.")));
                                         };
 
                                         let recipient = switch (recIdRaw) {
@@ -209,16 +209,16 @@ module Routes {
                                         let pId = Option.unwrap(projId);
                                         let justification = switch (justRaw) {
                                             case (?j) {
-                                                if (j == "") "Dashboard Mint" else j;
+                                                if (j == "") "Émission via Interface" else j;
                                             };
-                                            case null "Dashboard Mint";
+                                            case null "Émission via Interface";
                                         };
 
                                         let result = await bCtx.mint(pId, recipient, liquidNat, 0, justification);
 
                                         switch (result) {
                                             case (#ok(())) {
-                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Successfully minted tokens.", getToken(ctx))));
+                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Jetons émis avec succès.", getToken(ctx))));
                                             };
                                             case (#err(msg)) {
                                                 ctx.buildResponse(#badRequest, #html(UI.renderError(msg)));
@@ -235,13 +235,13 @@ module Routes {
                     #update(
                         #async_(
                             func(ctx : RouteContext.RouteContext) : async* Liminal.HttpResponse {
-                                let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Missing request body.")));
+                                let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Corps de requête manquant.")));
                                 let form = decodeForm(bodyText);
                                 let userIdOpt = getAuthenticatedUserId(ctx);
 
                                 switch (userIdOpt) {
                                     case null {
-                                        ctx.buildResponse(#unauthorized, #html(UI.renderError("Unauthorized.")));
+                                        ctx.buildResponse(#unauthorized, #html(UI.renderError("Non autorisé.")));
                                     };
                                     case (?userId) {
                                         let projId = switch (getFormValue(form, "projectId")) {
@@ -265,7 +265,7 @@ module Routes {
                                         let result = await bCtx.pay(userId, recId, projId, amount);
                                         switch (result) {
                                             case (#ok(())) {
-                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Transfer successful.", getToken(ctx))));
+                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Transfert réussi.", getToken(ctx))));
                                             };
                                             case (#err(msg)) {
                                                 ctx.buildResponse(#badRequest, #html(UI.renderError(msg)));
@@ -282,13 +282,13 @@ module Routes {
                     #update(
                         #async_(
                             func(ctx : RouteContext.RouteContext) : async* Liminal.HttpResponse {
-                                let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Missing request body.")));
+                                let ?bodyText = ctx.parseUtf8Body() else return ctx.buildResponse(#badRequest, #html(UI.renderError("Corps de requête manquant.")));
                                 let form = decodeForm(bodyText);
                                 let userIdOpt = getAuthenticatedUserId(ctx);
 
                                 switch (userIdOpt) {
                                     case null {
-                                        ctx.buildResponse(#unauthorized, #html(UI.renderError("Unauthorized.")));
+                                        ctx.buildResponse(#unauthorized, #html(UI.renderError("Non autorisé.")));
                                     };
                                     case (?userId) {
                                         let projId = switch (getFormValue(form, "projectId")) {
@@ -308,7 +308,7 @@ module Routes {
                                         let result = await bCtx.stake(userId, projId, amount);
                                         switch (result) {
                                             case (#ok(())) {
-                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Successfully staked tokens.", getToken(ctx))));
+                                                ctx.buildResponse(#ok, #html(UI.renderSuccess("Jetons stakés avec succès.", getToken(ctx))));
                                             };
                                             case (#err(msg)) {
                                                 ctx.buildResponse(#badRequest, #html(UI.renderError(msg)));
@@ -367,7 +367,7 @@ module Routes {
 
                                     switch (foundProject) {
                                         case null {
-                                            ctx.buildResponse(#notFound, #html(UI.renderError("Project not found in the registry.")));
+                                            ctx.buildResponse(#notFound, #html(UI.renderError("Projet introuvable dans le registre.")));
                                         };
                                         case (?p) {
                                             let history = bCtx.getMintHistory(p.id);

@@ -196,24 +196,24 @@ module UI {
 
     // --- Page Renderers ---
 
-    public func renderError(message : Text) : Text = documentHead("PCARE Error") #
-    header("Access Denied") #
+    public func renderError(message : Text) : Text = documentHead("Erreur PCARE") #
+    header("Accès Refusé") #
     "<div class='container'>\n" #
     "  <div class='error-box'>\n" #
-    "    <h3>Verification Failed</h3>\n" #
+    "    <h3>Échec de la Vérification</h3>\n" #
     "    <p>" # message # "</p>\n" #
     "  </div>\n" #
     "</div>\n" #
     documentTail;
 
-    public func renderSuccess(message : Text, tokenValue : Text) : Text = documentHead("Success - PCARE") #
-    header("Transaction Complete") #
+    public func renderSuccess(message : Text, tokenValue : Text) : Text = documentHead("Succès - PCARE") #
+    header("Transaction Terminée") #
     "<div class='container'>\n" #
     "  <div class='success-box'>\n" #
-    "    <h3>Success</h3>\n" #
+    "    <h3>Succès</h3>\n" #
     "    <p>" # message # "</p>\n" #
     "  </div>\n" #
-    "  <a href='/pcare?token=" # tokenValue # "' class='btn btn-outline' style='text-align: center;'>Return to Dashboard</a>\n" #
+    "  <a href='/pcare?token=" # tokenValue # "' class='btn btn-outline' style='text-align: center;'>Retour au Tableau de Bord</a>\n" #
     "</div>\n" #
     documentTail;
 
@@ -223,22 +223,22 @@ module UI {
         allProjects : [Types.Project],
         tokenValue : Text,
     ) : Text {
-        var html = documentHead("PCARE Dashboard") #
+        var html = documentHead("Tableau de Bord PCARE") #
         header(user.username) #
         "<div class='container'>\n";
 
         // 1. Balances Card
         html := html # "<div class='card'>\n";
-        html := html # "<h2>Your Assets</h2>\n";
+        html := html # "<h2>Vos Actifs</h2>\n";
         if (balances.size() == 0) {
-            html := html # "<p style='color: #888;'>No assets found. Mint some tokens!</p>\n";
+            html := html # "<p style='color: #888;'>Aucun actif trouvé. Frappez des jetons !</p>\n";
         } else {
             for ((projId, bal) in balances.vals()) {
                 html := html # "<div class='balance-item'>\n";
                 html := html # "  <span class='token-name'>" # projId # "</span>\n";
                 html := html # "  <div style='text-align: right;'>\n";
-                html := html # "    <div class='balance-amount'>" # Nat.toText(bal.liquid) # " <span style='font-size: 0.8rem; color: #aaa'>Liquid</span></div>\n";
-                html := html # "    <div class='balance-amount'>" # Nat.toText(bal.staked) # " <span style='font-size: 0.8rem; color: #aaa'>Staked</span></div>\n";
+                html := html # "    <div class='balance-amount'>" # Nat.toText(bal.liquid) # " <span style='font-size: 0.8rem; color: #aaa'>Liquide</span></div>\n";
+                html := html # "    <div class='balance-amount'>" # Nat.toText(bal.staked) # " <span style='font-size: 0.8rem; color: #aaa'>Staké</span></div>\n";
                 html := html # "  </div>\n";
                 html := html # "</div>\n";
             };
@@ -256,68 +256,68 @@ module UI {
             };
         };
         if (projectOptions == "") {
-            projectOptions := "<option value=''>No projects available</option>";
+            projectOptions := "<option value=''>Aucun projet disponible</option>";
         };
 
         // 2. Action: Mint (Only show projects led by this user, but for testing we show all or let them type)
         // Note: For full security, backend verifies if user is lead.
         html := html # "<div class='card'>\n";
-        html := html # "<h2>Protocol Operations</h2>\n";
-        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Execute verifiable on-chain protocol actions.</p>\n";
+        html := html # "<h2>Opérations du Protocole</h2>\n";
+        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Exécutez des actions de protocole on-chain vérifiables.</p>\n";
 
         // Stake Form
-        html := html # "<h3>Stake Influence</h3>\n";
+        html := html # "<h3>Staker de l'Influence</h3>\n";
         html := html # "<form action='/pcare/stake?token=" # tokenValue # "' method='POST' style='margin-bottom: 30px;'>\n";
         html := html # "  <div class='form-group'>\n";
-        html := html # "    <label>Select Project</label>\n";
+        html := html # "    <label>Sélectionner un Projet</label>\n";
         html := html # "    <select name='projectId' required>\n" # projectOptions # "</select>\n";
         html := html # "  </div>\n";
         html := html # "  <div class='form-group'>\n";
-        html := html # "    <label>Amount to Stake</label>\n";
-        html := html # "    <input type='number' name='amount' min='1' required placeholder='e.g. 50'/>\n";
+        html := html # "    <label>Montant à Staker</label>\n";
+        html := html # "    <input type='number' name='amount' min='1' required placeholder='ex. 50'/>\n";
         html := html # "  </div>\n";
-        html := html # "  <button type='submit' class='btn'>Submit Stake</button>\n";
+        html := html # "  <button type='submit' class='btn'>Soumettre le Stake</button>\n";
         html := html # "</form>\n";
 
         // Pay Form
-        html := html # "<h3>Transfer Tokens</h3>\n";
+        html := html # "<h3>Transférer des Jetons</h3>\n";
         html := html # "<form action='/pcare/pay?token=" # tokenValue # "' method='POST' style='margin-bottom: 30px;'>\n";
         html := html # "  <div class='form-group'>\n";
-        html := html # "    <label>Select Token</label>\n";
+        html := html # "    <label>Sélectionner un Projet</label>\n";
         html := html # "    <select name='projectId' required>\n" # projectOptions # "</select>\n";
         html := html # "  </div>\n";
         html := html # "  <div class='form-group'>\n";
-        html := html # "    <label>Recipient Username</label>\n";
-        html := html # "    <input type='text' name='recipientId' required placeholder='e.g. LX'/>\n";
+        html := html # "    <label>Nom d'Utilisateur du Destinataire</label>\n";
+        html := html # "    <input type='text' name='recipientId' required placeholder='ex. LX'/>\n";
         html := html # "  </div>\n";
         html := html # "  <div class='form-group'>\n";
-        html := html # "    <label>Amount</label>\n";
-        html := html # "    <input type='number' name='amount' min='1' required placeholder='e.g. 10'/>\n";
+        html := html # "    <label>Montant</label>\n";
+        html := html # "    <input type='number' name='amount' min='1' required placeholder='ex. 10'/>\n";
         html := html # "  </div>\n";
-        html := html # "  <button type='submit' class='btn btn-outline'>Transfer</button>\n";
+        html := html # "  <button type='submit' class='btn btn-outline'>Transférer</button>\n";
         html := html # "</form>\n";
 
         // Mint Form (Only visible to Project Leads)
         if (ledProjectsOptions != "") {
-            html := html # "<h3>Mint Rewards (Leads Only)</h3>\n";
+            html := html # "<h3>Émettre des Récompenses (Leads Uniquement)</h3>\n";
             html := html # "<form action='/pcare/mint?token=" # tokenValue # "' method='POST'>\n";
             html := html # "  <div class='form-group'>\n";
-            html := html # "    <label>Select Project</label>\n";
+            html := html # "    <label>Sélectionner un Projet</label>\n";
             html := html # "    <select name='projectId' required>\n" # ledProjectsOptions # "</select>\n";
             html := html # "  </div>\n";
             html := html # "  <div class='form-group'>\n";
-            html := html # "    <label>Recipient Username (Leave blank to mint to self)</label>\n";
-            html := html # "    <input type='text' name='recipientId' placeholder='e.g. LX'/>\n";
+            html := html # "    <label>Nom d'Utilisateur du Destinataire (Laisser vide pour soi-même)</label>\n";
+            html := html # "    <input type='text' name='recipientId' placeholder='ex. LX'/>\n";
             html := html # "  </div>\n";
             html := html # "  <div class='form-group'>\n";
-            html := html # "    <label>Justification / Reason</label>\n";
-            html := html # "    <input type='text' name='justification' required placeholder='e.g. Genesis block distribution'/>\n";
+            html := html # "    <label>Justification / Raison</label>\n";
+            html := html # "    <input type='text' name='justification' required placeholder='ex. Distribution du bloc Genesis'/>\n";
             html := html # "  </div>\n";
             html := html # "  <div class='form-group'>\n";
-            html := html # "    <label>Liquid Amount</label>\n";
+            html := html # "    <label>Montant Liquide</label>\n";
             html := html # "    <input type='number' name='liquid' min='1' value='100' required/>\n";
             html := html # "  </div>\n";
-            html := html # "  <button type='submit' class='btn'>Authorize Mint</button>\n";
+            html := html # "  <button type='submit' class='btn'>Autoriser l'Émission</button>\n";
             html := html # "</form>\n";
         };
 
@@ -366,24 +366,24 @@ module UI {
     };
 
     public func renderPublicRegistry(projects : [Types.Project]) : Text {
-        var html = documentHead("Evorev Public Registry") #
-        header("Project Registry") #
+        var html = documentHead("Registre Public Evorev") #
+        header("Registre des Projets") #
         "<div class='container'>\n";
 
         html := html # "<div class='card'>\n";
-        html := html # "<h2>Active Projects</h2>\n";
-        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Public macroeconomic ledger.</p>\n";
+        html := html # "<h2>Projets Actifs</h2>\n";
+        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Registre macroéconomique public.</p>\n";
 
         if (projects.size() == 0) {
-            html := html # "<p style='color: #888;'>No projects found.</p>\n";
+            html := html # "<p style='color: #888;'>Aucun projet trouvé.</p>\n";
         } else {
             for (proj in projects.vals()) {
                 html := html # "<div class='balance-item'>\n";
                 html := html # "  <span class='token-name'>" # proj.name # " (" # proj.id # ")</span>\n";
                 html := html # "  <div style='text-align: right;'>\n";
-                html := html # "    <div class='balance-amount'>" # Nat.toText(proj.current_supply) # " <span style='font-size: 0.8rem; color: #aaa'>Total Supply</span></div>\n";
+                html := html # "    <div class='balance-amount'>" # Nat.toText(proj.current_supply) # " <span style='font-size: 0.8rem; color: #aaa'>Offre Totale</span></div>\n";
                 html := html # "  </div>\n";
-                html := html # "  <a href='/registry?project=" # proj.id # "' class='btn btn-outline' style='font-size: 0.8rem; padding: 6px 12px; margin-top: 0;'>View Ledger</a>\n";
+                html := html # "  <a href='/registry?project=" # proj.id # "' class='btn btn-outline' style='font-size: 0.8rem; padding: 6px 12px; margin-top: 0;'>Voir le Registre</a>\n";
                 html := html # "</div>\n";
             };
         };
@@ -393,31 +393,31 @@ module UI {
     };
 
     public func renderProjectLedger(project : Types.Project, history : [Types.MintRecord]) : Text {
-        var html = documentHead("Ledger: " # project.name) #
-        header("Ledger: " # project.id) #
+        var html = documentHead("Registre : " # project.name) #
+        header("Registre : " # project.id) #
         "<div class='container'>\n";
 
         // Macro Statistics
         html := html # "<div class='card'>\n";
-        html := html # "<h2>Macro Tokenomics</h2>\n";
-        html := html # "<div style='display: flex; justify-content: space-between; margin-bottom: 10px;'><span>Total Supply:</span> <span class='balance-amount'>" # Nat.toText(project.current_supply) # "</span></div>\n";
-        html := html # "<div style='display: flex; justify-content: space-between; margin-bottom: 10px;'><span>Circulating (Liquid):</span> <span class='balance-amount' style='border-color: #aaa;'>" # Nat.toText(project.total_liquid) # "</span></div>\n";
-        html := html # "<div style='display: flex; justify-content: space-between;'><span>Locked (Staked):</span> <span class='balance-amount' style='border-color: #aaa;'>" # Nat.toText(project.total_staked) # "</span></div>\n";
+        html := html # "<h2>Tokenomics Macro</h2>\n";
+        html := html # "<div style='display: flex; justify-content: space-between; margin-bottom: 10px;'><span>Offre Totale :</span> <span class='balance-amount'>" # Nat.toText(project.current_supply) # "</span></div>\n";
+        html := html # "<div style='display: flex; justify-content: space-between; margin-bottom: 10px;'><span>En Circulation (Liquide) :</span> <span class='balance-amount' style='border-color: #aaa;'>" # Nat.toText(project.total_liquid) # "</span></div>\n";
+        html := html # "<div style='display: flex; justify-content: space-between;'><span>Verrouillé (Staké) :</span> <span class='balance-amount' style='border-color: #aaa;'>" # Nat.toText(project.total_staked) # "</span></div>\n";
         html := html # "</div>\n";
 
         // Mint History Ledger
         html := html # "<div class='card'>\n";
-        html := html # "<h2>Minting History</h2>\n";
-        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Cryptographic proof-of-issuance log.</p>\n";
+        html := html # "<h2>Historique d'Émission</h2>\n";
+        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Journal cryptographique de preuve d'émission.</p>\n";
 
         if (history.size() == 0) {
-            html := html # "<p style='color: #888;'>No mint events recorded yet.</p>\n";
+            html := html # "<p style='color: #888;'>Aucun événement d'émission enregistré pour le moment.</p>\n";
         } else {
             // Simplified table styling within the neon aesthetic
             html := html # "<table style='width: 100%; border-collapse: collapse; text-align: left;'>\n";
             html := html # "  <tr style='border-bottom: 2px solid #000;'>\n";
-            html := html # "    <th style='padding: 10px 0;'>Block Time</th>\n";
-            html := html # "    <th style='padding: 10px 0;'>Amount</th>\n";
+            html := html # "    <th style='padding: 10px 0;'>Heure du Bloc</th>\n";
+            html := html # "    <th style='padding: 10px 0;'>Montant</th>\n";
             html := html # "    <th style='padding: 10px 0;'>Justification</th>\n";
             html := html # "  </tr>\n";
 
@@ -431,7 +431,7 @@ module UI {
             html := html # "</table>\n";
         };
 
-        html := html # "<a href='/registry' class='btn btn-outline' style='margin-top: 30px; display: block; text-align: center;'>Back to Registry</a>\n";
+        html := html # "<a href='/registry' class='btn btn-outline' style='margin-top: 30px; display: block; text-align: center;'>Retour au Registre</a>\n";
         html := html # "</div>\n</div>\n" # documentTail;
         html;
     };
