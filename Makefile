@@ -56,3 +56,21 @@ delete_asset:
 
 check_protect_routes:
 	dfx canister call --ic $(CANISTER_NAME) listProtectedRoutesSummary
+
+# --- PCARE Evorev Helper Commands ---
+
+# Add a test user
+add_user:
+	dfx canister call $(CANISTER_NAME) add_user '("user_tester", "user_nfc_001")'
+
+# Add a test project (assigned to the user created above)
+add_project:
+	dfx canister call $(CANISTER_NAME) add_project '("CoursCouture", "Cours de couture", "user_3")' 
+
+# List all current users
+get_users:
+	dfx canister call $(CANISTER_NAME) get_all_users
+
+# List all current projects
+get_projects:
+	dfx canister call $(CANISTER_NAME) get_all_projects

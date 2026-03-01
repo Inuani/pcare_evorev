@@ -33,9 +33,9 @@ module Routes {
     };
 
     private func getAuthenticatedUserId(ctx : RouteContext.RouteContext) : ?Text {
-        return ?"user_1";
+        // return ?"user_1";
 
-        /*
+        
         switch (ctx.getIdentity()) {
             case null null;
             case (?identity) {
@@ -46,7 +46,7 @@ module Routes {
                 };
             };
         };
-        */
+    
     };
 
     private func getToken(ctx : RouteContext.RouteContext) : Text {

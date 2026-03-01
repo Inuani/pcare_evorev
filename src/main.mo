@@ -118,6 +118,13 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         ignore Map.put(appState.projects, Map.thash, id, newProject);
     };
 
+    public shared query ({ caller }) func get_all_projects() : async [Types.Project] {
+        if (not isAdmin(caller)) {
+            throw Error.reject("Not authorized: Must be Admin to list projects.");
+        };
+        Iter.toArray(Map.vals(appState.projects));
+    };
+
     public shared ({ caller }) func recover_nfc_tag(user_id : Text, new_nfc_uid : Text, old_nfc_uid : ?Text) : async () {
         if (not isAdmin(caller)) {
             throw Error.reject("Not authorized: Must be Admin to recover tags.");
