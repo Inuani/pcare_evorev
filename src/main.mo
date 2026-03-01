@@ -73,6 +73,13 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
             throw Error.reject("Not authorized: Must be Admin to add users.");
         };
 
+        let normalizedNew = normalize_username(username);
+        for (user in Map.vals(appState.users)) {
+            if (normalize_username(user.username) == normalizedNew) {
+                throw Error.reject("User with this name already exists.");
+            };
+        };
+
         user_counter += 1;
         let userId = "user_" # Nat.toText(user_counter);
 
@@ -212,15 +219,64 @@ shared ({ caller = initializer }) persistent actor class Actor() = self {
         #ok(());
     };
 
+    private func normalize_username(input : Text) : Text {
+        var str = Text.toLower(input);
+
+        let accents = [
+            ("á", "a"),
+            ("à", "a"),
+            ("â", "a"),
+            ("ä", "a"),
+            ("ã", "a"),
+            ("é", "e"),
+            ("è", "e"),
+            ("ê", "e"),
+            ("ë", "e"),
+            ("í", "i"),
+            ("ì", "i"),
+            ("î", "i"),
+            ("ï", "i"),
+            ("ó", "o"),
+            ("ò", "o"),
+            ("ô", "o"),
+            ("ö", "o"),
+            ("õ", "o"),
+            ("ú", "u"),
+            ("ù", "u"),
+            ("û", "u"),
+            ("ü", "u"),
+            ("ç", "c"),
+            ("ñ", "n"),
+        ];
+
+        for ((accent, simple) in accents.vals()) {
+            var result = "";
+            let parts = Text.split(str, #text(accent));
+            var first = true;
+            for (p in parts) {
+                if (first) {
+                    result := result # p;
+                    first := false;
+                } else {
+                    result := result # simple # p;
+                };
+            };
+            str := result;
+        };
+
+        str;
+    };
+
     private func resolve_user_id(input : Text) : ?Types.UserId {
         // First check if input is exactly a User ID
         switch (Map.get(appState.users, Map.thash, input)) {
             case (?user) return ?user.id;
             case null {};
         };
-        // Otherwise, search by exact username match (case-sensitive)
+        // Otherwise, search by exact or normalized username match
+        let normalizedInput = normalize_username(input);
         for (user in Map.vals(appState.users)) {
-            if (user.username == input) {
+            if (normalize_username(user.username) == normalizedInput) {
                 return ?user.id;
             };
         };

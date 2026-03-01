@@ -35,7 +35,6 @@ module Routes {
     private func getAuthenticatedUserId(ctx : RouteContext.RouteContext) : ?Text {
         // return ?"user_1";
 
-        
         switch (ctx.getIdentity()) {
             case null null;
             case (?identity) {
@@ -46,7 +45,7 @@ module Routes {
                 };
             };
         };
-    
+
     };
 
     private func getToken(ctx : RouteContext.RouteContext) : Text {
@@ -56,14 +55,102 @@ module Routes {
         };
     };
 
+    private func decodeUrlEncoded(str : Text) : Text {
+        var s = str;
+        let replaces = [
+            ("+", " "),
+            ("%20", " "),
+            ("%21", "!"),
+            ("%22", "\""),
+            ("%27", "'"),
+            ("%28", "("),
+            ("%29", ")"),
+            ("%2C", ","),
+            ("%3A", ":"),
+            ("%E2%80%99", "'"),
+            ("%C3%80", "À"),
+            ("%C3%81", "Á"),
+            ("%C3%82", "Â"),
+            ("%C3%83", "Ã"),
+            ("%C3%84", "Ä"),
+            ("%C3%85", "Å"),
+            ("%C3%86", "Æ"),
+            ("%C3%87", "Ç"),
+            ("%C3%88", "È"),
+            ("%C3%89", "É"),
+            ("%C3%8A", "Ê"),
+            ("%C3%8B", "Ë"),
+            ("%C3%8C", "Ì"),
+            ("%C3%8D", "Í"),
+            ("%C3%8E", "Î"),
+            ("%C3%8F", "Ï"),
+            ("%C3%91", "Ñ"),
+            ("%C3%92", "Ò"),
+            ("%C3%93", "Ó"),
+            ("%C3%94", "Ô"),
+            ("%C3%95", "Õ"),
+            ("%C3%96", "Ö"),
+            ("%C3%99", "Ù"),
+            ("%C3%9A", "Ú"),
+            ("%C3%9B", "Û"),
+            ("%C3%9C", "Ü"),
+            ("%C3%A0", "à"),
+            ("%C3%A1", "á"),
+            ("%C3%A2", "â"),
+            ("%C3%A3", "ã"),
+            ("%C3%A4", "ä"),
+            ("%C3%A5", "å"),
+            ("%C3%A6", "æ"),
+            ("%C3%A7", "ç"),
+            ("%C3%A8", "è"),
+            ("%C3%A9", "é"),
+            ("%C3%AA", "ê"),
+            ("%C3%AB", "ë"),
+            ("%C3%AC", "ì"),
+            ("%C3%AD", "í"),
+            ("%C3%AE", "î"),
+            ("%C3%AF", "ï"),
+            ("%C3%B1", "ñ"),
+            ("%C3%B2", "ò"),
+            ("%C3%B3", "ó"),
+            ("%C3%B4", "ô"),
+            ("%C3%B5", "õ"),
+            ("%C3%B6", "ö"),
+            ("%C3%B9", "ù"),
+            ("%C3%BA", "ú"),
+            ("%C3%BB", "û"),
+            ("%C3%BC", "ü"),
+            ("%E9", "é"),
+            ("%E8", "è"),
+            ("%E0", "à"),
+            ("%E7", "ç"),
+            ("%EA", "ê"),
+        ];
+
+        for ((enc, dec) in replaces.vals()) {
+            var result = "";
+            let parts = Text.split(s, #text(enc));
+            var first = true;
+            for (p in parts) {
+                if (first) {
+                    result := result # p;
+                    first := false;
+                } else {
+                    result := result # dec # p;
+                };
+            };
+            s := result;
+        };
+        s;
+    };
+
     private func decodeForm(body : Text) : [(Text, Text)] {
         var params : [(Text, Text)] = [];
         let pairs = Text.split(body, #text("&"));
         for (pair in pairs) {
             let kvArray = Iter.toArray(Text.split(pair, #text("=")));
             if (kvArray.size() >= 2) {
-                // VERY basic URL decoding replacement for %2B, %20 etc is skipped for brevity but would exist in a prod environment
-                params := Array.concat(params, [(kvArray[0], kvArray[1])]);
+                params := Array.concat(params, [(kvArray[0], decodeUrlEncoded(kvArray[1]))]);
             };
         };
         params;
@@ -109,7 +196,7 @@ module Routes {
 
                                 // 3. Build JWT
                                 let nowSeconds = Float.fromInt(Time.now() / 1_000_000_000);
-                                let expSeconds = nowSeconds + 3600.0; // 1 hour session
+                                let expSeconds = nowSeconds + 1200.0; // 20 minute session
 
                                 let unsignedToken : JWT.UnsignedToken = {
                                     header = [

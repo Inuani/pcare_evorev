@@ -229,7 +229,7 @@ module UI {
 
         // 1. Balances Card
         html := html # "<div class='card'>\n";
-        html := html # "<h2>Vos Actifs</h2>\n";
+        html := html # "<h2>Votre Évolution</h2>\n";
         if (balances.size() == 0) {
             html := html # "<p style='color: #888;'>Aucun actif trouvé. Frappez des jetons !</p>\n";
         } else {
@@ -262,11 +262,10 @@ module UI {
         // 2. Action: Mint (Only show projects led by this user, but for testing we show all or let them type)
         // Note: For full security, backend verifies if user is lead.
         html := html # "<div class='card'>\n";
-        html := html # "<h2>Opérations du Protocole</h2>\n";
-        html := html # "<p style='color: #aaa; margin-bottom: 20px; font-size: 0.9rem;'>Exécutez des actions de protocole on-chain vérifiables.</p>\n";
+        html := html # "<h2>Agir sur le réseau</h2>\n";
 
         // Stake Form
-        html := html # "<h3>Staker de l'Influence</h3>\n";
+        html := html # "<h3>Staker</h3>\n";
         html := html # "<form action='/pcare/stake?token=" # tokenValue # "' method='POST' style='margin-bottom: 30px;'>\n";
         html := html # "  <div class='form-group'>\n";
         html := html # "    <label>Sélectionner un Projet</label>\n";
@@ -276,11 +275,11 @@ module UI {
         html := html # "    <label>Montant à Staker</label>\n";
         html := html # "    <input type='number' name='amount' min='1' required placeholder='ex. 50'/>\n";
         html := html # "  </div>\n";
-        html := html # "  <button type='submit' class='btn'>Soumettre le Stake</button>\n";
+        html := html # "  <button type='submit' class='btn'>Stake</button>\n";
         html := html # "</form>\n";
 
         // Pay Form
-        html := html # "<h3>Transférer des Jetons</h3>\n";
+        html := html # "<h3>Transférer des tokens</h3>\n";
         html := html # "<form action='/pcare/pay?token=" # tokenValue # "' method='POST' style='margin-bottom: 30px;'>\n";
         html := html # "  <div class='form-group'>\n";
         html := html # "    <label>Sélectionner un Projet</label>\n";
@@ -299,8 +298,8 @@ module UI {
 
         // Mint Form (Only visible to Project Leads)
         if (ledProjectsOptions != "") {
-            html := html # "<h3>Émettre des Récompenses (Leads Uniquement)</h3>\n";
-            html := html # "<form action='/pcare/mint?token=" # tokenValue # "' method='POST'>\n";
+            html := html # "<h3>Minter</h3>\n";
+            html := html # "<form action='/pcare/mint?token=" # tokenValue # "' method='POST' style='margin-bottom: 30px;'>\n";
             html := html # "  <div class='form-group'>\n";
             html := html # "    <label>Sélectionner un Projet</label>\n";
             html := html # "    <select name='projectId' required>\n" # ledProjectsOptions # "</select>\n";
@@ -317,7 +316,7 @@ module UI {
             html := html # "    <label>Montant Liquide</label>\n";
             html := html # "    <input type='number' name='liquid' min='1' value='100' required/>\n";
             html := html # "  </div>\n";
-            html := html # "  <button type='submit' class='btn'>Autoriser l'Émission</button>\n";
+            html := html # "  <button type='submit' class='btn btn-outline'>Minter</button>\n";
             html := html # "</form>\n";
         };
 
@@ -422,8 +421,9 @@ module UI {
             html := html # "  </tr>\n";
 
             for (record in history.vals()) {
+                let jsDateCode = "<script>document.write(new Date(" # Nat.toText(Int.abs(record.timestamp) * 1000) # ").toLocaleString('fr-FR'))</script>";
                 html := html # "  <tr style='border-bottom: 1px dashed #aaa;'>\n";
-                html := html # "    <td style='padding: 15px 0; font-size: 0.8rem; color: #666;'>" # Nat.toText(Int.abs(record.timestamp)) # "</td>\n";
+                html := html # "    <td style='padding: 15px 0; font-size: 0.8rem; color: #666;'>" # jsDateCode # "</td>\n";
                 html := html # "    <td style='padding: 15px 0; font-weight: bold; color: var(--brand-color); background: #000; text-align: center; width: 80px;'>+" # Nat.toText(record.amount_liquid) # "</td>\n";
                 html := html # "    <td style='padding: 15px 10px; font-size: 0.9rem;'>" # record.justification # "</td>\n";
                 html := html # "  </tr>\n";
